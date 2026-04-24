@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 import anyio
 
@@ -71,3 +71,17 @@ _account_selection_cache = AccountSelectionCache()
 
 def get_account_selection_cache() -> AccountSelectionCache:
     return _account_selection_cache
+
+
+_BridgeSessionInvalidator = Callable[[str], Awaitable[None]]
+_bridge_session_invalidator: _BridgeSessionInvalidator | None = None
+
+
+def register_bridge_session_invalidator(fn: _BridgeSessionInvalidator) -> None:
+    global _bridge_session_invalidator
+    _bridge_session_invalidator = fn
+
+
+async def invalidate_bridge_sessions_for_account(account_id: str) -> None:
+    if _bridge_session_invalidator is not None:
+        await _bridge_session_invalidator(account_id)

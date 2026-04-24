@@ -66,23 +66,39 @@ async def import_account(
 
 @router.post("/{account_id}/reactivate", response_model=AccountReactivateResponse)
 async def reactivate_account(
+    request: Request,
     account_id: str,
     context: AccountsContext = Depends(get_accounts_context),
 ) -> AccountReactivateResponse:
+    existing = await context.repository.get_by_id(account_id)
+    old_status = existing.status.value if existing is not None else None
     success = await context.service.reactivate_account(account_id)
-    if not success:
+    if not success or existing is None:
         raise DashboardNotFoundError("Account not found", code="account_not_found")
+    AuditService.log_async(
+        "account_reactivated",
+        actor_ip=request.client.host if request.client else None,
+        details={"account_id": account_id, "old_status": old_status, "new_status": "active"},
+    )
     return AccountReactivateResponse(status="reactivated")
 
 
 @router.post("/{account_id}/pause", response_model=AccountPauseResponse)
 async def pause_account(
+    request: Request,
     account_id: str,
     context: AccountsContext = Depends(get_accounts_context),
 ) -> AccountPauseResponse:
+    existing = await context.repository.get_by_id(account_id)
+    old_status = existing.status.value if existing is not None else None
     success = await context.service.pause_account(account_id)
-    if not success:
+    if not success or existing is None:
         raise DashboardNotFoundError("Account not found", code="account_not_found")
+    AuditService.log_async(
+        "account_paused",
+        actor_ip=request.client.host if request.client else None,
+        details={"account_id": account_id, "old_status": old_status, "new_status": "paused"},
+    )
     return AccountPauseResponse(status="paused")
 
 

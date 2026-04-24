@@ -134,3 +134,60 @@ async def test_get_audit_logs_returns_entries(async_client) -> None:
     assert payload[0]["action"] == "settings_changed"
     assert payload[0]["details"] == {"changed_fields": ["routing_strategy"]}
     assert payload[0]["requestId"] == "audit-1"
+
+
+@pytest.mark.asyncio
+async def test_account_pause_writes_audit_log(async_client) -> None:
+    email = "audit-pause@example.com"
+    raw_account_id = "acc_audit_pause"
+    account_id = generate_unique_account_id(raw_account_id, email)
+
+    response = await async_client.post(
+        "/api/accounts/import",
+        files={"auth_json": ("auth.json", json.dumps(_make_auth_json(raw_account_id, email)), "application/json")},
+    )
+
+    assert response.status_code == 200
+
+    pause_response = await async_client.post(
+        f"/api/accounts/{account_id}/pause",
+        headers={"x-request-id": "audit-account-pause"},
+    )
+
+    assert pause_response.status_code == 200
+
+    audit_log = await _wait_for_audit_log("account_paused")
+    assert audit_log.request_id == "audit-account-pause"
+    assert audit_log.details == json.dumps(
+        {"account_id": account_id, "old_status": "active", "new_status": "paused"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_account_reactivate_writes_audit_log(async_client) -> None:
+    email = "audit-reactivate@example.com"
+    raw_account_id = "acc_audit_reactivate"
+    account_id = generate_unique_account_id(raw_account_id, email)
+
+    response = await async_client.post(
+        "/api/accounts/import",
+        files={"auth_json": ("auth.json", json.dumps(_make_auth_json(raw_account_id, email)), "application/json")},
+    )
+
+    assert response.status_code == 200
+
+    pause_response = await async_client.post(f"/api/accounts/{account_id}/pause")
+    assert pause_response.status_code == 200
+
+    reactivate_response = await async_client.post(
+        f"/api/accounts/{account_id}/reactivate",
+        headers={"x-request-id": "audit-account-reactivate"},
+    )
+
+    assert reactivate_response.status_code == 200
+
+    audit_log = await _wait_for_audit_log("account_reactivated")
+    assert audit_log.request_id == "audit-account-reactivate"
+    assert audit_log.details == json.dumps(
+        {"account_id": account_id, "old_status": "paused", "new_status": "active"}
+    )

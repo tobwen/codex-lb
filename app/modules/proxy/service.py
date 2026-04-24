@@ -3979,6 +3979,40 @@ class ProxyService:
         for session in sessions_to_close:
             await self._close_http_bridge_session(session)
 
+    async def close_http_bridge_sessions_for_account(self, account_id: str) -> None:
+        async with self._http_bridge_lock:
+            sessions_to_close = [
+                s for s in self._http_bridge_sessions.values()
+                if s.account.id == account_id
+            ]
+            for session in sessions_to_close:
+                self._http_bridge_sessions.pop(session.key, None)
+                self._unregister_http_bridge_turn_states_locked(session)
+                self._unregister_http_bridge_previous_response_ids_locked(session)
+                session.closed = True
+        for session in sessions_to_close:
+            await self._close_http_bridge_session(session)
+
+    async def close_http_bridge_sessions_for_inactive_accounts(self) -> None:
+        async with self._http_bridge_lock:
+            active_session_account_ids = {session.account.id for session in self._http_bridge_sessions.values()}
+
+        if not active_session_account_ids:
+            return
+
+        async with self._repo_factory() as repos:
+            accounts = await repos.accounts.list_accounts()
+
+        active_account_ids = {
+            account.id
+            for account in accounts
+            if account.id in active_session_account_ids and account.status == AccountStatus.ACTIVE
+        }
+        inactive_account_ids = active_session_account_ids - active_account_ids
+
+        for account_id in inactive_account_ids:
+            await self.close_http_bridge_sessions_for_account(account_id)
+
     async def mark_http_bridge_draining(self) -> None:
         try:
             await self._durable_bridge.mark_instance_draining(

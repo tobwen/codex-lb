@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 NAMESPACE_API_KEY = "api_key"
+NAMESPACE_ACCOUNT_SELECTION = "account_selection"
+NAMESPACE_HTTP_BRIDGE_SESSIONS = "http_bridge_sessions"
 NAMESPACE_FIREWALL = "firewall"
 type InvalidationCallback = Callable[[], None | Awaitable[None]]
 

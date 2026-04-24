@@ -212,16 +212,27 @@ async def lifespan(app: FastAPI):
 
     from app.core.auth.api_key_cache import get_api_key_cache
     from app.core.cache.invalidation import (
+        NAMESPACE_ACCOUNT_SELECTION,
         NAMESPACE_API_KEY,
         NAMESPACE_FIREWALL,
+        NAMESPACE_HTTP_BRIDGE_SESSIONS,
         CacheInvalidationPoller,
         set_cache_invalidation_poller,
     )
     from app.core.middleware.firewall_cache import get_firewall_ip_cache
+    from app.modules.proxy.account_cache import get_account_selection_cache
 
     cache_poller = CacheInvalidationPoller(SessionLocal)
+    cache_poller.on_invalidation(NAMESPACE_ACCOUNT_SELECTION, get_account_selection_cache().invalidate)
     cache_poller.on_invalidation(NAMESPACE_API_KEY, get_api_key_cache().clear)
     cache_poller.on_invalidation(NAMESPACE_FIREWALL, get_firewall_ip_cache().invalidate_all)
+
+    async def _close_http_bridge_sessions_on_invalidation() -> None:
+        proxy_service = getattr(app.state, "proxy_service", None)
+        if proxy_service is not None and hasattr(proxy_service, "close_http_bridge_sessions_for_inactive_accounts"):
+            await proxy_service.close_http_bridge_sessions_for_inactive_accounts()
+
+    cache_poller.on_invalidation(NAMESPACE_HTTP_BRIDGE_SESSIONS, _close_http_bridge_sessions_on_invalidation)
     set_cache_invalidation_poller(cache_poller)
     await cache_poller.start()
 

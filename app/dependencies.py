@@ -204,6 +204,8 @@ def get_proxy_service_for_app(app: FastAPI) -> ProxyService:
     if not isinstance(service, ProxyService):
         service = ProxyService(repo_factory=_proxy_repo_context)
         setattr(state, "proxy_service", service)
+        from app.modules.proxy.account_cache import register_bridge_session_invalidator
+        register_bridge_session_invalidator(service.close_http_bridge_sessions_for_account)
     return service
 
 

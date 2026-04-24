@@ -402,6 +402,80 @@ async def test_lifespan_marks_bridge_membership_stale_on_shutdown(monkeypatch: p
 
 
 @pytest.mark.asyncio
+async def test_lifespan_registers_account_selection_and_bridge_invalidation_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import app.main as main
+
+    settings = Settings(
+        otel_enabled=False,
+        otel_exporter_endpoint="",
+        metrics_enabled=False,
+        shutdown_drain_timeout_seconds=0,
+        http_responses_session_bridge_instance_id="pod-a",
+    )
+    settings_cache = SimpleNamespace(
+        invalidate=AsyncMock(),
+        get=AsyncMock(return_value=SimpleNamespace(password_hash=None)),
+    )
+    rate_limit_cache = SimpleNamespace(invalidate=AsyncMock())
+    usage_scheduler = _DummyScheduler()
+    model_scheduler = _DummyScheduler()
+    sticky_scheduler = _DummyScheduler()
+    close_http_client = AsyncMock()
+    close_db = AsyncMock()
+    ring_service = SimpleNamespace(
+        register=AsyncMock(),
+        mark_stale=AsyncMock(),
+        unregister=AsyncMock(),
+        heartbeat=AsyncMock(),
+    )
+    callbacks: dict[str, Any] = {}
+
+    class _CapturingPoller:
+        def on_invalidation(self, namespace: str, callback: Any) -> None:
+            callbacks[namespace] = callback
+
+        start = AsyncMock()
+        stop = AsyncMock()
+
+    cache_poller = _CapturingPoller()
+    account_selection_cache = SimpleNamespace(invalidate=Mock())
+    proxy_service = SimpleNamespace(close_http_bridge_sessions_for_inactive_accounts=AsyncMock())
+    app = main.create_app()
+    app.state.proxy_service = proxy_service
+
+    monkeypatch.setattr(main, "get_settings", lambda: settings)
+    monkeypatch.setattr(main, "get_settings_cache", lambda: settings_cache)
+    monkeypatch.setattr(main, "ensure_auto_bootstrap_token", AsyncMock(return_value=None))
+    monkeypatch.setattr(main, "get_rate_limit_headers_cache", lambda: rate_limit_cache)
+    monkeypatch.setattr(main, "reload_additional_quota_registry", lambda: None)
+    monkeypatch.setattr(main, "init_db", AsyncMock())
+    monkeypatch.setattr(main, "init_background_db", Mock())
+    monkeypatch.setattr(main, "init_http_client", AsyncMock())
+    monkeypatch.setattr(main, "_ensure_bridge_durable_schema_ready", AsyncMock())
+    monkeypatch.setattr(main, "close_http_client", close_http_client)
+    monkeypatch.setattr(main, "close_db", close_db)
+    monkeypatch.setattr(main, "build_usage_refresh_scheduler", lambda: usage_scheduler)
+    monkeypatch.setattr(main, "build_model_refresh_scheduler", lambda: model_scheduler)
+    monkeypatch.setattr(main, "build_sticky_session_cleanup_scheduler", lambda: sticky_scheduler)
+    monkeypatch.setattr(main, "RingMembershipService", lambda session_factory: ring_service)
+    monkeypatch.setattr(
+        "app.core.cache.invalidation.CacheInvalidationPoller",
+        lambda session_factory: cache_poller,
+    )
+    monkeypatch.setattr("app.modules.proxy.account_cache.get_account_selection_cache", lambda: account_selection_cache)
+
+    async with main.lifespan(app):
+        callbacks["account_selection"]()
+        await callbacks["http_bridge_sessions"]()
+        account_selection_cache.invalidate.assert_called_once_with()
+        proxy_service.close_http_bridge_sessions_for_inactive_accounts.assert_awaited_once_with()
+
+    account_selection_cache.invalidate.assert_called_once_with()
+
+
+@pytest.mark.asyncio
 async def test_lifespan_shutdown_fails_bridge_capacity_waiter_and_cancels_usage_singleflight(
     monkeypatch: pytest.MonkeyPatch,
 ):

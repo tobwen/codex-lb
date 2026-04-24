@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from contextlib import nullcontext
+from contextlib import asynccontextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, cast
@@ -4573,6 +4573,166 @@ async def test_close_all_http_bridge_sessions_fails_inflight_waiters() -> None:
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.payload["error"]["code"] == "upstream_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_close_http_bridge_sessions_for_account_closes_matching_sessions_and_cleans_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = proxy_service.ProxyService(cast(Any, nullcontext()))
+    target_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-target", None)
+    other_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-other", None)
+    target_session = proxy_service._HTTPBridgeSession(
+        key=target_key,
+        headers={},
+        affinity=proxy_service._AffinityPolicy(key="sid-target"),
+        request_model="gpt-5.4",
+        account=cast(Any, SimpleNamespace(id="acc-target", status=AccountStatus.ACTIVE)),
+        upstream=cast(UpstreamResponsesWebSocket, SimpleNamespace(close=AsyncMock())),
+        upstream_control=proxy_service._WebSocketUpstreamControl(),
+        pending_requests=cast(deque[proxy_service._WebSocketRequestState], deque()),
+        pending_lock=anyio.Lock(),
+        response_create_gate=asyncio.Semaphore(1),
+        queued_request_count=0,
+        last_used_at=1.0,
+        idle_ttl_seconds=120.0,
+        downstream_turn_state_aliases={"turn-target"},
+        previous_response_ids={"resp-target"},
+    )
+    other_session = proxy_service._HTTPBridgeSession(
+        key=other_key,
+        headers={},
+        affinity=proxy_service._AffinityPolicy(key="sid-other"),
+        request_model="gpt-5.4",
+        account=cast(Any, SimpleNamespace(id="acc-other", status=AccountStatus.ACTIVE)),
+        upstream=cast(UpstreamResponsesWebSocket, SimpleNamespace(close=AsyncMock())),
+        upstream_control=proxy_service._WebSocketUpstreamControl(),
+        pending_requests=cast(deque[proxy_service._WebSocketRequestState], deque()),
+        pending_lock=anyio.Lock(),
+        response_create_gate=asyncio.Semaphore(1),
+        queued_request_count=0,
+        last_used_at=1.0,
+        idle_ttl_seconds=120.0,
+    )
+    service._http_bridge_sessions[target_key] = target_session
+    service._http_bridge_sessions[other_key] = other_session
+    service._http_bridge_turn_state_index[
+        proxy_service._http_bridge_turn_state_alias_key("turn-target", target_key.api_key_id)
+    ] = target_key
+    service._http_bridge_previous_response_index[
+        proxy_service._http_bridge_previous_response_alias_key("resp-target", target_key.api_key_id)
+    ] = target_key
+    close_session = AsyncMock()
+    monkeypatch.setattr(service, "_close_http_bridge_session", close_session)
+
+    await service.close_http_bridge_sessions_for_account("acc-target")
+
+    assert target_key not in service._http_bridge_sessions
+    assert other_key in service._http_bridge_sessions
+    assert (
+        proxy_service._http_bridge_turn_state_alias_key("turn-target", target_key.api_key_id)
+        not in service._http_bridge_turn_state_index
+    )
+    assert (
+        proxy_service._http_bridge_previous_response_alias_key("resp-target", target_key.api_key_id)
+        not in service._http_bridge_previous_response_index
+    )
+    close_session.assert_awaited_once_with(target_session)
+
+
+@pytest.mark.asyncio
+async def test_close_http_bridge_sessions_for_account_does_not_fail_unrelated_inflight_waiters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = proxy_service.ProxyService(cast(Any, nullcontext()))
+    target_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-target", None)
+    inflight_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-inflight", None)
+    target_session = proxy_service._HTTPBridgeSession(
+        key=target_key,
+        headers={},
+        affinity=proxy_service._AffinityPolicy(key="sid-target"),
+        request_model="gpt-5.4",
+        account=cast(Any, SimpleNamespace(id="acc-target", status=AccountStatus.ACTIVE)),
+        upstream=cast(UpstreamResponsesWebSocket, SimpleNamespace(close=AsyncMock())),
+        upstream_control=proxy_service._WebSocketUpstreamControl(),
+        pending_requests=cast(deque[proxy_service._WebSocketRequestState], deque()),
+        pending_lock=anyio.Lock(),
+        response_create_gate=asyncio.Semaphore(1),
+        queued_request_count=0,
+        last_used_at=1.0,
+        idle_ttl_seconds=120.0,
+    )
+    inflight_future: asyncio.Future[proxy_service._HTTPBridgeSession] = asyncio.get_running_loop().create_future()
+    service._http_bridge_sessions[target_key] = target_session
+    service._http_bridge_inflight_sessions[inflight_key] = inflight_future
+    close_session = AsyncMock()
+    monkeypatch.setattr(service, "_close_http_bridge_session", close_session)
+
+    await service.close_http_bridge_sessions_for_account("acc-target")
+
+    assert inflight_key in service._http_bridge_inflight_sessions
+    assert inflight_future.done() is False
+    close_session.assert_awaited_once_with(target_session)
+
+
+@pytest.mark.asyncio
+async def test_close_http_bridge_sessions_for_inactive_accounts_closes_only_inactive_accounts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active_account = SimpleNamespace(id="acc-active", status=AccountStatus.ACTIVE)
+    paused_account = SimpleNamespace(id="acc-paused", status=AccountStatus.PAUSED)
+    service = proxy_service.ProxyService(cast(Any, nullcontext()))
+    active_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-active", None)
+    paused_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-paused", None)
+    active_session = proxy_service._HTTPBridgeSession(
+        key=active_key,
+        headers={},
+        affinity=proxy_service._AffinityPolicy(key="sid-active"),
+        request_model="gpt-5.4",
+        account=cast(Any, SimpleNamespace(id="acc-active", status=AccountStatus.ACTIVE)),
+        upstream=cast(UpstreamResponsesWebSocket, SimpleNamespace(close=AsyncMock())),
+        upstream_control=proxy_service._WebSocketUpstreamControl(),
+        pending_requests=cast(deque[proxy_service._WebSocketRequestState], deque()),
+        pending_lock=anyio.Lock(),
+        response_create_gate=asyncio.Semaphore(1),
+        queued_request_count=0,
+        last_used_at=1.0,
+        idle_ttl_seconds=120.0,
+    )
+    paused_session = proxy_service._HTTPBridgeSession(
+        key=paused_key,
+        headers={},
+        affinity=proxy_service._AffinityPolicy(key="sid-paused"),
+        request_model="gpt-5.4",
+        account=cast(Any, SimpleNamespace(id="acc-paused", status=AccountStatus.ACTIVE)),
+        upstream=cast(UpstreamResponsesWebSocket, SimpleNamespace(close=AsyncMock())),
+        upstream_control=proxy_service._WebSocketUpstreamControl(),
+        pending_requests=cast(deque[proxy_service._WebSocketRequestState], deque()),
+        pending_lock=anyio.Lock(),
+        response_create_gate=asyncio.Semaphore(1),
+        queued_request_count=0,
+        last_used_at=1.0,
+        idle_ttl_seconds=120.0,
+    )
+    inflight_key = proxy_service._HTTPBridgeSessionKey("session_header", "sid-inflight", None)
+    inflight_future: asyncio.Future[proxy_service._HTTPBridgeSession] = asyncio.get_running_loop().create_future()
+    service._http_bridge_sessions[active_key] = active_session
+    service._http_bridge_sessions[paused_key] = paused_session
+    service._http_bridge_inflight_sessions[inflight_key] = inflight_future
+
+    @asynccontextmanager
+    async def repo_factory():
+        yield SimpleNamespace(accounts=SimpleNamespace(list_accounts=AsyncMock(return_value=[active_account, paused_account])))
+
+    service._repo_factory = repo_factory
+    close_for_account = AsyncMock()
+    monkeypatch.setattr(service, "close_http_bridge_sessions_for_account", close_for_account)
+
+    await service.close_http_bridge_sessions_for_inactive_accounts()
+
+    close_for_account.assert_awaited_once_with("acc-paused")
+    assert inflight_key in service._http_bridge_inflight_sessions
+    assert inflight_future.done() is False
 
 
 @pytest.mark.asyncio
