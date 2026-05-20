@@ -139,6 +139,8 @@ def build_log_config() -> LogConfig:
             "datefmt": "%Y-%m-%dT%H:%M:%SZ",
             "use_colors": None,
         }
+
+    config.setdefault("root", {"level": "INFO", "handlers": ["default"]})
     return cast(LogConfig, config)
 
 
