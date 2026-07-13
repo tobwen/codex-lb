@@ -31,7 +31,7 @@ class DashboardSettingsData:
     openai_cache_affinity_max_age_seconds: int
     dashboard_session_ttl_seconds: int
     http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int
-    http_responses_session_bridge_fork_idle_ttl_seconds: int | None
+    http_responses_session_bridge_subagent_prompt_cache_ttl_seconds: int | None
     http_responses_session_bridge_gateway_safe_mode: bool
     sticky_reallocation_budget_threshold_pct: float
     sticky_reallocation_primary_budget_threshold_pct: float
@@ -79,7 +79,7 @@ class DashboardSettingsUpdateData:
     openai_cache_affinity_max_age_seconds: int
     dashboard_session_ttl_seconds: int
     http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int | None
-    http_responses_session_bridge_fork_idle_ttl_seconds: int | None
+    http_responses_session_bridge_subagent_prompt_cache_ttl_seconds: int | None
     http_responses_session_bridge_gateway_safe_mode: bool | None
     sticky_reallocation_budget_threshold_pct: float | None
     sticky_reallocation_primary_budget_threshold_pct: float | None
@@ -135,7 +135,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 row.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
-            http_responses_session_bridge_fork_idle_ttl_seconds=row.http_responses_session_bridge_fork_idle_ttl_seconds,
+            http_responses_session_bridge_subagent_prompt_cache_ttl_seconds=row.http_responses_session_bridge_subagent_prompt_cache_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=row.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=row.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=row.sticky_reallocation_primary_budget_threshold_pct,
@@ -196,7 +196,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 payload.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
-            http_responses_session_bridge_fork_idle_ttl_seconds=payload.http_responses_session_bridge_fork_idle_ttl_seconds,
+            http_responses_session_bridge_subagent_prompt_cache_ttl_seconds=payload.http_responses_session_bridge_subagent_prompt_cache_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=payload.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=payload.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=payload.sticky_reallocation_primary_budget_threshold_pct,
@@ -247,7 +247,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 row.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
-            http_responses_session_bridge_fork_idle_ttl_seconds=row.http_responses_session_bridge_fork_idle_ttl_seconds,
+            http_responses_session_bridge_subagent_prompt_cache_ttl_seconds=row.http_responses_session_bridge_subagent_prompt_cache_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=row.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=row.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=row.sticky_reallocation_primary_budget_threshold_pct,

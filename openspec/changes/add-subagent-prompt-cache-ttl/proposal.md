@@ -4,7 +4,7 @@ OpenCode identifies short-lived child work with the `x-parent-session-id` reques
 
 ## What Changes
 
-- Add a persisted dashboard setting, `http_responses_session_bridge_fork_idle_ttl_seconds`, defaulting to `NULL`.
+- Add a persisted dashboard setting, `http_responses_session_bridge_subagent_prompt_cache_ttl_seconds`, defaulting to `NULL`.
 - Treat a request carrying `x-parent-session-id` as a subagent session.
 - Use `NULL` as No Cache; use a positive setting to retain only the subagent PROMPT_CACHE mapping for that duration.
 - Close the subagent HTTP bridge immediately after its response stream ends, independent of mapping retention.

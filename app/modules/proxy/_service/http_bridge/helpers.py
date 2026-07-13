@@ -194,7 +194,6 @@ class _HTTPBridgeRuntimeConfig:
     max_sessions: int
     queue_limit: int
     prompt_cache_idle_ttl_seconds: float
-    fork_idle_ttl_seconds: float | None
     gateway_safe_mode: bool
 
 
@@ -1635,11 +1634,7 @@ def _effective_http_bridge_idle_ttl_seconds(
     idle_ttl_seconds: float,
     codex_idle_ttl_seconds: float,
     prompt_cache_idle_ttl_seconds: float | None = None,
-    fork_idle_ttl_seconds: float | None = None,
-    is_fork: bool = False,
 ) -> float:
-    if is_fork and fork_idle_ttl_seconds is not None:
-        return fork_idle_ttl_seconds
     if affinity.kind == StickySessionKind.CODEX_SESSION:
         return max(idle_ttl_seconds, codex_idle_ttl_seconds)
     if affinity.kind == StickySessionKind.PROMPT_CACHE and prompt_cache_idle_ttl_seconds is not None:
@@ -1981,11 +1976,6 @@ def _http_bridge_runtime_config(
         queue_limit=app_settings.http_responses_session_bridge_queue_limit,
         prompt_cache_idle_ttl_seconds=float(
             dashboard_settings.http_responses_session_bridge_prompt_cache_idle_ttl_seconds,
-        ),
-        fork_idle_ttl_seconds=(
-            float(dashboard_settings.http_responses_session_bridge_fork_idle_ttl_seconds)
-            if dashboard_settings.http_responses_session_bridge_fork_idle_ttl_seconds is not None
-            else None
         ),
         gateway_safe_mode=dashboard_settings.http_responses_session_bridge_gateway_safe_mode,
     )

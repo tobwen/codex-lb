@@ -324,6 +324,7 @@ class LoadBalancer:
         sticky_kind: StickySessionKind | None = None,
         reallocate_sticky: bool = False,
         sticky_max_age_seconds: int | None = None,
+        sticky_is_subagent: bool = False,
         prefer_earlier_reset_accounts: bool = False,
         prefer_earlier_reset_window: ResetPreferenceWindow = "secondary",
         routing_strategy: RoutingStrategy = "capacity_weighted",
@@ -685,6 +686,7 @@ class LoadBalancer:
                             sticky_kind=sticky_kind,
                             reallocate_sticky=reallocate_sticky,
                             sticky_max_age_seconds=sticky_max_age_seconds,
+                            sticky_is_subagent=sticky_is_subagent,
                             budget_threshold_pct=budget_threshold_pct,
                             secondary_budget_threshold_pct=secondary_budget_threshold_pct,
                             prefer_earlier_reset_accounts=prefer_earlier_reset_accounts,
@@ -1271,6 +1273,7 @@ class LoadBalancer:
         sticky_kind: StickySessionKind | None,
         reallocate_sticky: bool,
         sticky_max_age_seconds: int | None,
+        sticky_is_subagent: bool = False,
         budget_threshold_pct: float = 95.0,
         secondary_budget_threshold_pct: float = 100.0,
         prefer_earlier_reset_accounts: bool,
@@ -1299,6 +1302,10 @@ class LoadBalancer:
             )
         if sticky_kind is None:
             raise ValueError("sticky_kind is required when sticky_key is provided")
+        sticky_upsert_kwargs = {
+            "kind": sticky_kind,
+            **({"is_subagent": True} if sticky_is_subagent else {}),
+        }
 
         if sticky_existing_account_id is _STICKY_EXISTING_UNSET:
             existing = await sticky_repo.get_account_id(
@@ -1382,7 +1389,11 @@ class LoadBalancer:
                     )
                     if pinned_result.account is not None:
                         if sticky_max_age_seconds is not None:
-                            await sticky_repo.upsert(sticky_key, pinned.account_id, kind=sticky_kind)
+                            await sticky_repo.upsert(
+                                sticky_key,
+                                pinned.account_id,
+                                **sticky_upsert_kwargs,
+                            )
                         return pinned_result
                 else:
                     # Reallocate only when a burn-first target exists and can
@@ -1436,7 +1447,7 @@ class LoadBalancer:
                                     await sticky_repo.upsert(
                                         sticky_key,
                                         pinned.account_id,
-                                        kind=sticky_kind,
+                                        **sticky_upsert_kwargs,
                                     )
                                 return pinned_result
                     reallocate_sticky = True
@@ -1463,7 +1474,11 @@ class LoadBalancer:
                     )
                     if grace_result.account is not None:
                         if sticky_max_age_seconds is not None:
-                            await sticky_repo.upsert(sticky_key, pinned.account_id, kind=sticky_kind)
+                            await sticky_repo.upsert(
+                                sticky_key,
+                                pinned.account_id,
+                                **sticky_upsert_kwargs,
+                            )
                         return grace_result
                 if reallocate_sticky:
                     await sticky_repo.delete(sticky_key, kind=sticky_kind)
@@ -1498,7 +1513,11 @@ class LoadBalancer:
             routing_costs_by_account_id=routing_costs_by_account_id,
         )
         if persist_fallback and chosen.account is not None and chosen.account.account_id in account_map:
-            await sticky_repo.upsert(sticky_key, chosen.account.account_id, kind=sticky_kind)
+            await sticky_repo.upsert(
+                sticky_key,
+                chosen.account.account_id,
+                **sticky_upsert_kwargs,
+            )
         return chosen
 
     async def mark_rate_limit(self, account: Account, error: UpstreamError) -> None:

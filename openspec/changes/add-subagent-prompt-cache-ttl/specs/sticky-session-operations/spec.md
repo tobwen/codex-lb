@@ -2,7 +2,7 @@
 
 ### Requirement: Subagent prompt-cache affinity is optional
 
-The system SHALL identify subagent requests by `x-parent-session-id`. The dashboard setting `http_responses_session_bridge_fork_idle_ttl_seconds` SHALL use `NULL` as the default No Cache mode. When set to a positive number, it SHALL retain the subagent's PROMPT_CACHE mapping for that many seconds. The HTTP bridge session itself SHALL close when the subagent response stream ends regardless of the setting.
+The system SHALL identify subagent requests by `x-parent-session-id`. The dashboard setting `http_responses_session_bridge_subagent_prompt_cache_ttl_seconds` SHALL use `NULL` as the default No Cache mode. When set to a positive number, it SHALL retain the subagent's PROMPT_CACHE mapping for that many seconds. The HTTP bridge session itself SHALL close when the subagent response stream ends regardless of the setting.
 
 #### Scenario: Subagent uses No Cache by default
 

@@ -14,11 +14,11 @@ Subagents have independent bridge sessions and do not need parent-style prompt-c
 
 ## Decisions
 
-1. The existing dashboard field `http_responses_session_bridge_fork_idle_ttl_seconds` is nullable. `NULL` means No Cache; a positive value is the subagent mapping TTL.
+1. The dashboard field `http_responses_session_bridge_subagent_prompt_cache_ttl_seconds` is nullable. `NULL` means No Cache; a positive value is the subagent mapping TTL.
 2. No-Cache subagents pass no sticky key to account selection, so the load balancer neither reads nor writes a PROMPT_CACHE mapping.
 3. Enabled subagent affinity passes the subagent TTL as `sticky_max_age_seconds`; the bridge session still closes immediately after stream completion.
 4. The parent mapping is never deleted by subagent cleanup. A stale mapping for a No-Cache subagent may be deleted as a cleanup safeguard.
-5. Unanchored parallel and model fork detection does not apply this setting. Those requests retain standard behavior because OpenCode does not expose them as a distinct reliable category.
+5. Sticky mappings persist an `is_subagent` marker so the reaper can apply the subagent TTL without deleting parent mappings.
 
 ## Non-Goals
 

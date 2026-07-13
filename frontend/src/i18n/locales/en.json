@@ -316,11 +316,6 @@
           "primary": "5h only",
           "secondary": "Weekly only"
         }
-      },
-      "forkBridgeIdleTtl": {
-        "label": "Fork bridge idle TTL",
-        "description": "Idle seconds before an unanchored parallel fork bridge session is closed (default 120).",
-        "save": "Save TTL"
       }
     },
     "import": {

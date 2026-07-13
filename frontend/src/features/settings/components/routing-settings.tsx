@@ -103,7 +103,7 @@ type RoutingSettingsDraft = {
   limitWarmupIdleThreshold: string;
   additionalQuotaKey: string;
   additionalQuotaPolicy: AdditionalQuotaRoutingPolicy;
-  forkBridgeIdleTtl: string;
+  subagentPromptCacheTtl: string;
 };
 
 function createRoutingSettingsDraft(settings: DashboardSettings): RoutingSettingsDraft {
@@ -124,10 +124,10 @@ function createRoutingSettingsDraft(settings: DashboardSettings): RoutingSetting
     limitWarmupIdleThreshold: String(settings.limitWarmupIdleThresholdPercent),
     additionalQuotaKey: "",
     additionalQuotaPolicy: "inherit",
-    forkBridgeIdleTtl:
-      settings.httpResponsesSessionBridgeForkIdleTtlSeconds == null
+    subagentPromptCacheTtl:
+      settings.httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds == null
         ? ""
-        : String(settings.httpResponsesSessionBridgeForkIdleTtlSeconds),
+        : String(settings.httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds),
   };
 }
 
@@ -188,13 +188,14 @@ export function RoutingSettings({
   const cacheAffinityTtlValid = Number.isInteger(parsedCacheAffinityTtl) && parsedCacheAffinityTtl > 0;
   const cacheAffinityTtlChanged =
     cacheAffinityTtlValid && parsedCacheAffinityTtl !== settings.openaiCacheAffinityMaxAgeSeconds;
-  const parsedForkBridgeIdleTtl =
-    draft.forkBridgeIdleTtl.trim() === "" ? null : Number.parseInt(draft.forkBridgeIdleTtl, 10);
-  const forkBridgeIdleTtlValid =
-    parsedForkBridgeIdleTtl === null ||
-    (Number.isInteger(parsedForkBridgeIdleTtl) && parsedForkBridgeIdleTtl > 0);
-  const forkBridgeIdleTtlChanged =
-    forkBridgeIdleTtlValid && parsedForkBridgeIdleTtl !== settings.httpResponsesSessionBridgeForkIdleTtlSeconds;
+  const parsedSubagentPromptCacheTtl =
+    draft.subagentPromptCacheTtl.trim() === "" ? null : Number.parseInt(draft.subagentPromptCacheTtl, 10);
+  const subagentPromptCacheTtlValid =
+    parsedSubagentPromptCacheTtl === null ||
+    (Number.isInteger(parsedSubagentPromptCacheTtl) && parsedSubagentPromptCacheTtl > 0);
+  const subagentPromptCacheTtlChanged =
+    subagentPromptCacheTtlValid &&
+    parsedSubagentPromptCacheTtl !== settings.httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds;
   const parsedProxyAccountResponseCreateLimit = parseNonnegativeInteger(draft.proxyAccountResponseCreateLimit);
   const parsedProxyAccountStreamLimit = parseNonnegativeInteger(draft.proxyAccountStreamLimit);
   const parsedProxyAccountStreamRecoveryReserve = parseNonnegativeInteger(
@@ -1177,12 +1178,14 @@ export function RoutingSettings({
                 step={1}
                 inputMode="numeric"
                 placeholder={t("settings.routing.subagentPromptCache.placeholder")}
-                value={draft.forkBridgeIdleTtl}
+                 value={draft.subagentPromptCacheTtl}
                 disabled={busy}
-                onChange={(event) => updateDraft({ forkBridgeIdleTtl: event.target.value })}
+                 onChange={(event) => updateDraft({ subagentPromptCacheTtl: event.target.value })}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && forkBridgeIdleTtlChanged) {
-                    void save({ httpResponsesSessionBridgeForkIdleTtlSeconds: parsedForkBridgeIdleTtl });
+                   if (event.key === "Enter" && subagentPromptCacheTtlChanged) {
+                     void save({
+                       httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds: parsedSubagentPromptCacheTtl,
+                     });
                   }
                 }}
                 className="h-8 w-28 text-xs"
@@ -1192,8 +1195,12 @@ export function RoutingSettings({
                 size="sm"
                 variant="outline"
                 className="h-8 text-xs"
-                disabled={busy || !forkBridgeIdleTtlChanged}
-                onClick={() => void save({ httpResponsesSessionBridgeForkIdleTtlSeconds: parsedForkBridgeIdleTtl })}
+                 disabled={busy || !subagentPromptCacheTtlChanged}
+                 onClick={() =>
+                   void save({
+                     httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds: parsedSubagentPromptCacheTtl,
+                   })
+                 }
               >
                 {t("settings.routing.subagentPromptCache.save")}
               </Button>

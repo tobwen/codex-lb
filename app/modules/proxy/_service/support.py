@@ -537,7 +537,6 @@ class _HTTPBridgeSession:
     upstream_proxy_endpoint_id: str | None = None
     upstream_proxy_fallback_used: bool | None = None
     upstream_proxy_fail_closed_reason: str | None = None
-    is_fork: bool = False
     is_subagent: bool = False
     subagent_prompt_cache_ttl_seconds: int | None = None
 

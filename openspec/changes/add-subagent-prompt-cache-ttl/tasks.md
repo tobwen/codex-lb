@@ -1,6 +1,6 @@
 ## 1. Schema & Backend Persistence
 
-- [x] 1.1 Add `http_responses_session_bridge_fork_idle_ttl_seconds` column to `dashboard_settings` table (nullable Integer; `NULL` means No Cache), with Alembic migration revision
+- [x] 1.1 Add `http_responses_session_bridge_subagent_prompt_cache_ttl_seconds` column to `dashboard_settings` table (nullable Integer; `NULL` means No Cache), with Alembic migration revision
 - [x] 1.2 Add the field to `DashboardSettings` ORM model in `app/db/models.py`
 - [x] 1.3 Add the field to `DashboardSettingsData` dataclass in `app/modules/settings/service.py`
 - [x] 1.4 Add the field to `DashboardSettingsUpdateData` for persistence through the settings API
@@ -22,7 +22,7 @@
 
 ## 4. Frontend: Subagent Affinity Setting
 
-- [x] 4.1 Add `httpResponsesSessionBridgeForkIdleTtlSeconds` to the frontend `DashboardSettings` type in `frontend/src/features/settings/schemas.ts`
+- [x] 4.1 Add `httpResponsesSessionBridgeSubagentPromptCacheTtlSeconds` to the frontend `DashboardSettings` type in `frontend/src/features/settings/schemas.ts`
 - [x] 4.2 Add field to the `RoutingSettingsDraft` type, the `createRoutingSettingsDraft()` factory, and the `buildSettingsUpdateRequest` helper
 - [x] 4.3 Add an optional integer input labelled "Subagent prompt-cache affinity TTL" (seconds); empty means No Cache
 

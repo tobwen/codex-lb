@@ -96,7 +96,21 @@ class StickySessionCleanupScheduler:
                     settings = await settings_repo.get_or_create()
 
                     cutoff = utcnow() - timedelta(seconds=settings.openai_cache_affinity_max_age_seconds)
-                    deleted_count = await sticky_repo.purge_prompt_cache_before(cutoff)
+                    deleted_count = await sticky_repo.purge_prompt_cache_before(cutoff, is_subagent=False)
+                    subagent_ttl = getattr(
+                        settings,
+                        "http_responses_session_bridge_subagent_prompt_cache_ttl_seconds",
+                        None,
+                    )
+                    subagent_cutoff = (
+                        utcnow() - timedelta(seconds=subagent_ttl)
+                        if subagent_ttl is not None
+                        else utcnow()
+                    )
+                    deleted_count += await sticky_repo.purge_prompt_cache_before(
+                        subagent_cutoff,
+                        is_subagent=True,
+                    )
                     if deleted_count > 0:
                         logger.info("Purged stale prompt-cache sticky sessions deleted_count=%s", deleted_count)
                     if startup_module._bridge_durable_schema_ready or not await missing_durable_bridge_tables(session):

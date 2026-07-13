@@ -71,6 +71,7 @@ async def _invoke_stickiness(
     sticky_kind: StickySessionKind | None = StickySessionKind.PROMPT_CACHE,
     reallocate_sticky: bool = False,
     sticky_max_age_seconds: int | None = 600,
+    sticky_is_subagent: bool = False,
     budget_threshold_pct: float = 95.0,
     secondary_budget_threshold_pct: float = 100.0,
     routing_strategy: RoutingStrategy = "usage_weighted",
@@ -98,6 +99,7 @@ async def _invoke_stickiness(
         sticky_kind=sticky_kind,
         reallocate_sticky=reallocate_sticky,
         sticky_max_age_seconds=sticky_max_age_seconds,
+        sticky_is_subagent=sticky_is_subagent,
         budget_threshold_pct=budget_threshold_pct,
         secondary_budget_threshold_pct=secondary_budget_threshold_pct,
         prefer_earlier_reset_accounts=False,
@@ -138,6 +140,7 @@ async def test_positive_subagent_ttl_uses_sticky_mapping() -> None:
         "subagent-cache-key",
         repo,
         sticky_max_age_seconds=120,
+        sticky_is_subagent=True,
     )
 
     assert result.account is not None
@@ -146,7 +149,12 @@ async def test_positive_subagent_ttl_uses_sticky_mapping() -> None:
         kind=StickySessionKind.PROMPT_CACHE,
         max_age_seconds=120,
     )
-    repo.upsert.assert_awaited_once_with("subagent-cache-key", "a", kind=StickySessionKind.PROMPT_CACHE)
+    repo.upsert.assert_awaited_once_with(
+        "subagent-cache-key",
+        "a",
+        kind=StickySessionKind.PROMPT_CACHE,
+        is_subagent=True,
+    )
 
 
 # ---------------------------------------------------------------------------
