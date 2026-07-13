@@ -19,6 +19,7 @@ from app.modules.proxy.sticky_repository import StickySessionsRepository
 from app.modules.settings.repository import SettingsRepository
 
 logger = logging.getLogger(__name__)
+_MAX_STICKY_CLEANUP_INTERVAL_SECONDS = 30
 
 
 class _LeaderElectionLike(Protocol):
@@ -80,7 +81,10 @@ class StickySessionCleanupScheduler:
         while not self._stop.is_set():
             await self._cleanup_once()
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self.interval_seconds)
+                await asyncio.wait_for(
+                    self._stop.wait(),
+                    timeout=min(self.interval_seconds, _MAX_STICKY_CLEANUP_INTERVAL_SECONDS),
+                )
             except asyncio.TimeoutError:
                 continue
 
