@@ -890,6 +890,7 @@ class _HTTPBridgeRuntimeConfig:
     max_sessions: int
     queue_limit: int
     prompt_cache_idle_ttl_seconds: float
+    fork_idle_ttl_seconds: float | None
     gateway_safe_mode: bool
 
 

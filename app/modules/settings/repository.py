@@ -60,6 +60,7 @@ class SettingsRepository:
             limit_warmup_windows="both",
             limit_warmup_model="auto",
             limit_warmup_prompt="Say OK.",
+            http_responses_session_bridge_fork_idle_ttl_seconds=120,
             limit_warmup_cooldown_seconds=3600,
             limit_warmup_exhausted_threshold_percent=99.0,
             limit_warmup_idle_threshold_percent=1.0,
@@ -101,6 +102,7 @@ class SettingsRepository:
         openai_cache_affinity_max_age_seconds: int | None = None,
         dashboard_session_ttl_seconds: int | None = None,
         http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int | None = None,
+        http_responses_session_bridge_fork_idle_ttl_seconds: int | None = None,
         http_responses_session_bridge_gateway_safe_mode: bool | None = None,
         sticky_reallocation_budget_threshold_pct: float | None = None,
         sticky_reallocation_primary_budget_threshold_pct: float | None = None,
@@ -170,6 +172,10 @@ class SettingsRepository:
         if http_responses_session_bridge_prompt_cache_idle_ttl_seconds is not None:
             settings.http_responses_session_bridge_prompt_cache_idle_ttl_seconds = (
                 http_responses_session_bridge_prompt_cache_idle_ttl_seconds
+            )
+        if http_responses_session_bridge_fork_idle_ttl_seconds is not None:
+            settings.http_responses_session_bridge_fork_idle_ttl_seconds = (
+                http_responses_session_bridge_fork_idle_ttl_seconds
             )
         if http_responses_session_bridge_gateway_safe_mode is not None:
             settings.http_responses_session_bridge_gateway_safe_mode = http_responses_session_bridge_gateway_safe_mode

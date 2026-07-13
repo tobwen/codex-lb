@@ -1,0 +1,52 @@
+"""add subagent prompt-cache TTL to dashboard_settings
+
+Revision ID: 20260713_080000_add_subagent_prompt_cache_ttl
+Revises: 20260713_020000_add_model_registry_snapshot
+Create Date: 2026-07-13
+"""
+
+from __future__ import annotations
+
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.engine import Connection
+
+revision = "20260713_080000_add_subagent_prompt_cache_ttl"
+down_revision = "20260713_070000_add_reset_credit_redeem_tables"
+branch_labels = None
+depends_on = None
+
+
+def _columns(connection: Connection, table_name: str) -> set[str]:
+    inspector = sa.inspect(connection)
+    if not inspector.has_table(table_name):
+        return set()
+    return {column["name"] for column in inspector.get_columns(table_name)}
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    columns = _columns(bind, "dashboard_settings")
+    if not columns:
+        return
+
+    if "http_responses_session_bridge_fork_idle_ttl_seconds" not in columns:
+        with op.batch_alter_table("dashboard_settings") as batch_op:
+            batch_op.add_column(
+                sa.Column(
+                    "http_responses_session_bridge_fork_idle_ttl_seconds",
+                    sa.Integer(),
+                    nullable=True,
+                )
+            )
+
+
+def downgrade() -> None:
+    bind = op.get_bind()
+    columns = _columns(bind, "dashboard_settings")
+    if not columns:
+        return
+
+    if "http_responses_session_bridge_fork_idle_ttl_seconds" in columns:
+        with op.batch_alter_table("dashboard_settings") as batch_op:
+            batch_op.drop_column("http_responses_session_bridge_fork_idle_ttl_seconds")

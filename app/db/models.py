@@ -654,6 +654,12 @@ class DashboardSettings(Base):
         server_default=text("3600"),
         nullable=False,
     )
+    http_responses_session_bridge_fork_idle_ttl_seconds: Mapped[int] = mapped_column(
+        Integer,
+        default=None,
+        server_default=None,
+        nullable=True,
+    )
     http_responses_session_bridge_gateway_safe_mode: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

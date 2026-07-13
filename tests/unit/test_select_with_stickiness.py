@@ -65,10 +65,10 @@ def _make_sticky_repo(existing_account_id: str | None = None) -> AsyncMock:
 
 async def _invoke_stickiness(
     states: list[AccountState],
-    sticky_key: str,
+    sticky_key: str | None,
     sticky_repo: AsyncMock,
     *,
-    sticky_kind: StickySessionKind = StickySessionKind.PROMPT_CACHE,
+    sticky_kind: StickySessionKind | None = StickySessionKind.PROMPT_CACHE,
     reallocate_sticky: bool = False,
     sticky_max_age_seconds: int | None = 600,
     budget_threshold_pct: float = 95.0,
@@ -108,6 +108,45 @@ async def _invoke_stickiness(
         sticky_repo=sticky_repo,
         routing_costs_by_account_id=routing_costs_by_account_id,
     )
+
+
+@pytest.mark.asyncio
+async def test_no_cache_subagent_skips_sticky_mapping() -> None:
+    repo = _make_sticky_repo()
+
+    result = await _invoke_stickiness(
+        [_active("a")],
+        None,
+        repo,
+        sticky_kind=None,
+        sticky_max_age_seconds=None,
+    )
+
+    assert result.account is not None
+    assert result.account.account_id == "a"
+    repo.get_account_id.assert_not_called()
+    repo.upsert.assert_not_called()
+    repo.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_positive_subagent_ttl_uses_sticky_mapping() -> None:
+    repo = _make_sticky_repo()
+
+    result = await _invoke_stickiness(
+        [_active("a")],
+        "subagent-cache-key",
+        repo,
+        sticky_max_age_seconds=120,
+    )
+
+    assert result.account is not None
+    repo.get_account_id.assert_awaited_once_with(
+        "subagent-cache-key",
+        kind=StickySessionKind.PROMPT_CACHE,
+        max_age_seconds=120,
+    )
+    repo.upsert.assert_awaited_once_with("subagent-cache-key", "a", kind=StickySessionKind.PROMPT_CACHE)
 
 
 # ---------------------------------------------------------------------------

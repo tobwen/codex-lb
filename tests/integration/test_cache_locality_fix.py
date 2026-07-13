@@ -133,6 +133,77 @@ def test_codex_session_idle_ttl_unchanged():
     assert result == 900.0, "CODEX_SESSION should use max(idle_ttl_seconds, codex_idle_ttl_seconds)"
 
 
+def test_subagent_prompt_cache_ttl_overrides_prompt_cache_idle_ttl():
+    """Verify that a configured subagent TTL can override prompt-cache idle TTL.
+
+    Without the fork fix, the _effective_http_bridge_idle_ttl_seconds function
+    did not accept is_fork or fork_idle_ttl_seconds parameters — this test
+    fails with TypeError on the old code and passes with the fix.
+    """
+    from app.db.models import StickySessionKind
+    from app.modules.proxy.service import _AffinityPolicy, _effective_http_bridge_idle_ttl_seconds
+
+    affinity = _AffinityPolicy(
+        key="fork-cache-key",
+        kind=StickySessionKind.PROMPT_CACHE,
+    )
+
+    result = _effective_http_bridge_idle_ttl_seconds(
+        affinity=affinity,
+        idle_ttl_seconds=120.0,
+        codex_idle_ttl_seconds=900.0,
+        prompt_cache_idle_ttl_seconds=3600.0,
+        fork_idle_ttl_seconds=120.0,
+        is_fork=True,
+    )
+
+    assert result == 120.0, "Configured subagent TTL should override prompt-cache idle TTL"
+
+
+def test_subagent_no_cache_falls_back_to_base_idle_ttl():
+    """Verify that No Cache does not add a fork-specific idle retention window."""
+    from app.db.models import StickySessionKind
+    from app.modules.proxy.service import _AffinityPolicy, _effective_http_bridge_idle_ttl_seconds
+
+    affinity = _AffinityPolicy(
+        key="fork-cache-key",
+        kind=StickySessionKind.PROMPT_CACHE,
+    )
+
+    result = _effective_http_bridge_idle_ttl_seconds(
+        affinity=affinity,
+        idle_ttl_seconds=120.0,
+        codex_idle_ttl_seconds=900.0,
+        prompt_cache_idle_ttl_seconds=3600.0,
+        fork_idle_ttl_seconds=None,
+        is_fork=True,
+    )
+
+    assert result == 3600.0, "No Cache should not add a fork-specific idle retention window"
+
+
+def test_canonical_prompt_cache_unchanged():
+    """Verify that a canonical PROMPT_CACHE session retains its standard idle TTL."""
+    from app.db.models import StickySessionKind
+    from app.modules.proxy.service import _AffinityPolicy, _effective_http_bridge_idle_ttl_seconds
+
+    affinity = _AffinityPolicy(
+        key="parent-cache-key",
+        kind=StickySessionKind.PROMPT_CACHE,
+    )
+
+    result = _effective_http_bridge_idle_ttl_seconds(
+        affinity=affinity,
+        idle_ttl_seconds=120.0,
+        codex_idle_ttl_seconds=900.0,
+        prompt_cache_idle_ttl_seconds=3600.0,
+        fork_idle_ttl_seconds=120.0,
+        is_fork=False,
+    )
+
+    assert result == 3600.0, "Canonical PROMPT_CACHE should still use prompt_cache_idle_ttl_seconds"
+
+
 def test_model_class_extraction_for_all_model_types():
     """Verify model class extraction works correctly for mini, codex, and standard models."""
     from app.modules.proxy.affinity import _extract_model_class

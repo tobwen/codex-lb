@@ -2,7 +2,7 @@
   "common": {
     "language": "Language",
     "english": "English",
-    "chinese": "简体中文",
+    "chinese": "\u7b80\u4f53\u4e2d\u6587",
     "logout": "Logout",
     "loading": "Loading",
     "cancel": "Cancel"
@@ -185,6 +185,12 @@
         "description": "Keep related requests on the same account.",
         "ariaLabel": "Enable sticky threads"
       },
+      "subagentPromptCache": {
+        "label": "Subagent prompt-cache affinity TTL",
+        "description": "Empty disables subagent affinity caching; set seconds such as 120 to retain it temporarily.",
+        "placeholder": "No Cache",
+        "save": "Save subagent TTL"
+      },
       "preferEarlier": {
         "label": "Prefer earlier reset",
         "description": "Bias traffic to accounts with earlier quota reset.",
@@ -310,6 +316,11 @@
           "primary": "5h only",
           "secondary": "Weekly only"
         }
+      },
+      "forkBridgeIdleTtl": {
+        "label": "Fork bridge idle TTL",
+        "description": "Idle seconds before an unanchored parallel fork bridge session is closed (default 120).",
+        "save": "Save TTL"
       }
     },
     "import": {

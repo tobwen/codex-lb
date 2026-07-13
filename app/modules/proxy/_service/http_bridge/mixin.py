@@ -73,6 +73,7 @@ from app.modules.proxy._service.http_bridge.helpers import (
     _close_http_bridge_session_bounded,
     _durable_bridge_lookup_active_owner,
     _durable_bridge_lookup_allows_local_reuse,
+    _effective_http_bridge_idle_ttl_seconds,
     _forwarded_http_bridge_session_key,
     _http_bridge_allow_durable_takeover,
     _http_bridge_can_local_recover_without_ring,
@@ -430,6 +431,7 @@ class _HTTPBridgeMixin(
         session_header_fallback_key: "_HTTPBridgeSessionKey | None" = None,
     ) -> "_HTTPBridgeSession | _HTTPBridgeOwnerForward":
         settings = _service_get_settings()
+        dashboard_settings = await _service_get_settings_cache().get()
         request_scope_id = ensure_request_scope_id()
         api_key_id = api_key.id if api_key is not None else None
         incoming_turn_state = _sticky_key_from_turn_state_header(headers)
@@ -470,6 +472,25 @@ class _HTTPBridgeMixin(
                         ),
                     )
         effective_idle_ttl_seconds = idle_ttl_seconds
+        is_fork_session = False
+        is_subagent_session = False
+        subagent_prompt_cache_ttl_seconds = dashboard_settings.http_responses_session_bridge_fork_idle_ttl_seconds
+        subagent_header = headers.get("x-parent-session-id", "")
+        if subagent_header.strip():
+            is_fork_session = True
+            is_subagent_session = True
+            effective_idle_ttl_seconds = _effective_http_bridge_idle_ttl_seconds(
+                affinity=affinity,
+                idle_ttl_seconds=idle_ttl_seconds,
+                codex_idle_ttl_seconds=settings.http_responses_session_bridge_codex_idle_ttl_seconds,
+                prompt_cache_idle_ttl_seconds=None,
+                fork_idle_ttl_seconds=(
+                    float(subagent_prompt_cache_ttl_seconds)
+                    if subagent_prompt_cache_ttl_seconds is not None
+                    else None
+                ),
+                is_fork=True,
+            )
         forwarded_affinity = (
             _forwarded_http_bridge_session_key(
                 headers,
@@ -616,6 +637,19 @@ class _HTTPBridgeMixin(
                     durable_lookup = None
                     force_durable_takeover_after_detach = False
                     own_fork_locally = forwarded_request and forwarded_original_request_unanchored
+                    is_fork_session = True
+                    effective_idle_ttl_seconds = _effective_http_bridge_idle_ttl_seconds(
+                        affinity=affinity,
+                        idle_ttl_seconds=idle_ttl_seconds,
+                        codex_idle_ttl_seconds=settings.http_responses_session_bridge_codex_idle_ttl_seconds,
+                        prompt_cache_idle_ttl_seconds=(
+                            float(dashboard_settings.http_responses_session_bridge_prompt_cache_idle_ttl_seconds)
+                            if affinity.kind == StickySessionKind.PROMPT_CACHE
+                            else None
+                        ),
+                        fork_idle_ttl_seconds=None,
+                        is_fork=False,
+                    )
                     continue
                 retained_handoff = bool(
                     existing and existing.closed and _http_bridge_session_has_admission_waiter(existing)
@@ -647,6 +681,19 @@ class _HTTPBridgeMixin(
                     key = model_fork_key
                     durable_lookup = None
                     force_durable_takeover_after_detach = False
+                    is_fork_session = True
+                    effective_idle_ttl_seconds = _effective_http_bridge_idle_ttl_seconds(
+                        affinity=affinity,
+                        idle_ttl_seconds=idle_ttl_seconds,
+                        codex_idle_ttl_seconds=settings.http_responses_session_bridge_codex_idle_ttl_seconds,
+                        prompt_cache_idle_ttl_seconds=(
+                            float(dashboard_settings.http_responses_session_bridge_prompt_cache_idle_ttl_seconds)
+                            if affinity.kind == StickySessionKind.PROMPT_CACHE
+                            else None
+                        ),
+                        fork_idle_ttl_seconds=None,
+                        is_fork=False,
+                    )
                     continue
                 if retained_handoff and not reusable:
                     _raise_http_bridge_incompatible_admission_handoff()
@@ -1326,6 +1373,21 @@ class _HTTPBridgeMixin(
                     key = model_fork_key
                     durable_lookup = None
                     force_durable_takeover_after_detach = False
+                    is_fork_session = True
+                    effective_idle_ttl_seconds = _effective_http_bridge_idle_ttl_seconds(
+                        affinity=affinity,
+                        idle_ttl_seconds=idle_ttl_seconds,
+                        codex_idle_ttl_seconds=settings.http_responses_session_bridge_codex_idle_ttl_seconds,
+                        prompt_cache_idle_ttl_seconds=(
+                            float(dashboard_settings.http_responses_session_bridge_prompt_cache_idle_ttl_seconds)
+                            if affinity.kind == StickySessionKind.PROMPT_CACHE
+                            else None
+                        ),
+                        fork_idle_ttl_seconds=float(
+                            dashboard_settings.http_responses_session_bridge_fork_idle_ttl_seconds
+                        ),
+                        is_fork=True,
+                    )
                     continue
                 if (
                     not session.closed
@@ -1377,6 +1439,9 @@ class _HTTPBridgeMixin(
                     "request_model": request_model,
                     "request_service_tier": request_service_tier,
                     "idle_ttl_seconds": effective_idle_ttl_seconds,
+                    "is_fork": is_fork_session,
+                    "is_subagent": is_subagent_session,
+                    "subagent_prompt_cache_ttl_seconds": subagent_prompt_cache_ttl_seconds,
                     "request_stage": request_stage,
                     "preferred_account_id": preferred_account_id,
                     "require_preferred_account": require_preferred_account,
@@ -1589,6 +1654,19 @@ class _HTTPBridgeMixin(
                 api_key=None,
                 response_create_gate=response_create_gate,
             )
+        if (
+            session.is_subagent
+            and session.subagent_prompt_cache_ttl_seconds is None
+            and session.affinity.kind is StickySessionKind.PROMPT_CACHE
+        ):
+            try:
+                async with self._repo_factory() as repositories:
+                    await repositories.sticky_sessions.delete(
+                        session.affinity.key,
+                        kind=StickySessionKind.PROMPT_CACHE,
+                    )
+            except Exception:
+                logger.warning("Failed to delete completed subagent sticky mapping", exc_info=True)
         _log_http_bridge_event(
             "close",
             session.key,
@@ -1835,6 +1913,9 @@ class _HTTPBridgeMixin(
         fallback_on_preferred_account_unavailable: bool = True,
         request_usage_budget: ApiKeyRequestUsageBudget | None = None,
         request_deadline: float | None = None,
+        is_fork: bool = False,
+        is_subagent: bool = False,
+        subagent_prompt_cache_ttl_seconds: int | None = None,
     ) -> "_HTTPBridgeSession":
         request_state = _WebSocketRequestState(
             request_id=f"http_bridge_connect_{uuid4().hex}",
@@ -1864,10 +1945,22 @@ class _HTTPBridgeMixin(
                 "kind": "http_bridge",
                 "request_stage": request_stage,
                 "api_key": api_key,
-                "sticky_key": affinity.key,
-                "sticky_kind": affinity.kind,
+                "sticky_key": (
+                    affinity.key
+                    if not is_subagent or subagent_prompt_cache_ttl_seconds is not None
+                    else None
+                ),
+                "sticky_kind": (
+                    affinity.kind
+                    if not is_subagent or subagent_prompt_cache_ttl_seconds is not None
+                    else None
+                ),
                 "reallocate_sticky": affinity.reallocate_sticky,
-                "sticky_max_age_seconds": affinity.max_age_seconds,
+                "sticky_max_age_seconds": (
+                    subagent_prompt_cache_ttl_seconds
+                    if is_subagent
+                    else affinity.max_age_seconds
+                ),
                 "prefer_earlier_reset_accounts": settings.prefer_earlier_reset_accounts,
                 "prefer_earlier_reset_window": _prefer_earlier_reset_window(settings),
                 "routing_strategy": _routing_strategy(settings),
@@ -2083,6 +2176,9 @@ class _HTTPBridgeMixin(
             upstream_turn_state=_upstream_turn_state_from_socket(upstream),
             downstream_turn_state=None,
             account_lease=selected_account_lease,
+            is_fork=is_fork,
+            is_subagent=is_subagent,
+            subagent_prompt_cache_ttl_seconds=subagent_prompt_cache_ttl_seconds,
         )
         _copy_websocket_route_metadata_to_session(session, request_state)
         session.upstream_reader = asyncio.create_task(self._relay_http_bridge_upstream_messages(session))

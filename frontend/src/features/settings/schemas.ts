@@ -129,6 +129,7 @@ export const DashboardSettingsSchema = z
     guestAccessEnabled: z.boolean().optional().default(false),
     guestPasswordConfigured: z.boolean().optional().default(false),
     limitWarmupStaggeredIdleEnabled: z.boolean().optional().default(false),
+     httpResponsesSessionBridgeForkIdleTtlSeconds: z.number().int().positive().nullable().optional().default(null),
     version: z.number().int().min(1).optional(),
   })
   .transform((settings) => {
@@ -197,6 +198,7 @@ export const SettingsUpdateRequestSchema = z
     weeklyPaceSmoothingMinutes: WeeklyPaceSmoothingMinutesSchema.optional(),
     guestAccessEnabled: z.boolean().optional(),
     limitWarmupStaggeredIdleEnabled: z.boolean().optional(),
+     httpResponsesSessionBridgeForkIdleTtlSeconds: z.number().int().positive().nullable().optional(),
   })
   .superRefine((settings, ctx) => {
     if (

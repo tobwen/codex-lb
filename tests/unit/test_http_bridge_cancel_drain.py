@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, Callable, cast
 from unittest.mock import AsyncMock
@@ -168,6 +169,53 @@ async def test_cancelled_http_bridge_request_retires_session_before_retry_overla
     assert session.closed is True
     upstream_close.assert_awaited_once()
     release_reservation.assert_awaited_once_with(cancelled_request.api_key_reservation)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("is_subagent", "subagent_prompt_cache_ttl_seconds", "expected"),
+    [
+        (True, None, [("subagent-cache-key", proxy_service.StickySessionKind.PROMPT_CACHE)]),
+        (True, 120, []),
+        (False, None, []),
+    ],
+)
+async def test_closing_http_bridge_session_deletes_only_subagent_sticky_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+    is_subagent: bool,
+    subagent_prompt_cache_ttl_seconds: int | None,
+    expected: list[tuple[str, proxy_service.StickySessionKind]],
+) -> None:
+    deleted: list[tuple[str, proxy_service.StickySessionKind]] = []
+
+    async def delete_sticky_mapping(key: str, *, kind: proxy_service.StickySessionKind) -> bool:
+        deleted.append((key, kind))
+        return True
+
+    @asynccontextmanager
+    async def repo_factory():
+        yield SimpleNamespace(
+            sticky_sessions=SimpleNamespace(delete=delete_sticky_mapping),
+        )
+
+    service = proxy_service.ProxyService(cast(Any, repo_factory))
+    service._load_balancer = SimpleNamespace(release_account_lease=AsyncMock())
+    monkeypatch.setattr(service, "_unregister_http_bridge_turn_states", AsyncMock())
+    monkeypatch.setattr(service, "_unregister_http_bridge_previous_response_ids", AsyncMock())
+    monkeypatch.setattr(service, "_fail_pending_websocket_requests", AsyncMock())
+
+    session = _make_http_bridge_session(deque(), queued_request_count=0)
+    session.affinity = proxy_service._AffinityPolicy(
+        key="subagent-cache-key",
+        kind=proxy_service.StickySessionKind.PROMPT_CACHE,
+    )
+    session.is_fork = True
+    session.is_subagent = is_subagent
+    session.subagent_prompt_cache_ttl_seconds = subagent_prompt_cache_ttl_seconds
+
+    await service._close_http_bridge_session(session)
+
+    assert deleted == expected
 
 
 def test_retiring_http_bridge_session_is_not_reusable() -> None:

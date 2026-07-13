@@ -31,6 +31,7 @@ class DashboardSettingsData:
     openai_cache_affinity_max_age_seconds: int
     dashboard_session_ttl_seconds: int
     http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int
+    http_responses_session_bridge_fork_idle_ttl_seconds: int | None
     http_responses_session_bridge_gateway_safe_mode: bool
     sticky_reallocation_budget_threshold_pct: float
     sticky_reallocation_primary_budget_threshold_pct: float
@@ -77,29 +78,30 @@ class DashboardSettingsUpdateData:
     single_account_id: str | None
     openai_cache_affinity_max_age_seconds: int
     dashboard_session_ttl_seconds: int
-    http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int
-    http_responses_session_bridge_gateway_safe_mode: bool
-    sticky_reallocation_budget_threshold_pct: float
-    sticky_reallocation_primary_budget_threshold_pct: float
-    sticky_reallocation_secondary_budget_threshold_pct: float
-    additional_quota_routing_policies: dict[str, str]
-    warmup_model: str
-    import_without_overwrite: bool
-    totp_required_on_login: bool
-    api_key_auth_enabled: bool
-    hide_upstream_quota_from_api_keys: bool
-    limit_warmup_enabled: bool
-    limit_warmup_windows: str
-    limit_warmup_model: str
-    limit_warmup_prompt: str
-    limit_warmup_cooldown_seconds: int
-    limit_warmup_exhausted_threshold_percent: float
-    limit_warmup_idle_threshold_percent: float
-    limit_warmup_min_available_percent: float
-    weekly_pace_working_days: str
-    weekly_pace_smoothing_minutes: int
-    guest_access_enabled: bool
-    limit_warmup_staggered_idle_enabled: bool
+    http_responses_session_bridge_prompt_cache_idle_ttl_seconds: int | None
+    http_responses_session_bridge_fork_idle_ttl_seconds: int | None
+    http_responses_session_bridge_gateway_safe_mode: bool | None
+    sticky_reallocation_budget_threshold_pct: float | None
+    sticky_reallocation_primary_budget_threshold_pct: float | None
+    sticky_reallocation_secondary_budget_threshold_pct: float | None
+    additional_quota_routing_policies: dict[str, str] | None
+    warmup_model: str | None
+    import_without_overwrite: bool | None
+    totp_required_on_login: bool | None
+    api_key_auth_enabled: bool | None
+    hide_upstream_quota_from_api_keys: bool | None
+    limit_warmup_enabled: bool | None
+    limit_warmup_windows: str | None
+    limit_warmup_model: str | None
+    limit_warmup_prompt: str | None
+    limit_warmup_cooldown_seconds: int | None
+    limit_warmup_exhausted_threshold_percent: float | None
+    limit_warmup_idle_threshold_percent: float | None
+    limit_warmup_min_available_percent: float | None
+    weekly_pace_working_days: str | None
+    weekly_pace_smoothing_minutes: int | None
+    guest_access_enabled: bool | None
+    limit_warmup_staggered_idle_enabled: bool | None
 
 
 class SettingsService:
@@ -133,6 +135,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 row.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
+            http_responses_session_bridge_fork_idle_ttl_seconds=row.http_responses_session_bridge_fork_idle_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=row.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=row.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=row.sticky_reallocation_primary_budget_threshold_pct,
@@ -193,6 +196,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 payload.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
+            http_responses_session_bridge_fork_idle_ttl_seconds=payload.http_responses_session_bridge_fork_idle_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=payload.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=payload.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=payload.sticky_reallocation_primary_budget_threshold_pct,
@@ -243,6 +247,7 @@ class SettingsService:
             http_responses_session_bridge_prompt_cache_idle_ttl_seconds=(
                 row.http_responses_session_bridge_prompt_cache_idle_ttl_seconds
             ),
+            http_responses_session_bridge_fork_idle_ttl_seconds=row.http_responses_session_bridge_fork_idle_ttl_seconds,
             http_responses_session_bridge_gateway_safe_mode=row.http_responses_session_bridge_gateway_safe_mode,
             sticky_reallocation_budget_threshold_pct=row.sticky_reallocation_budget_threshold_pct,
             sticky_reallocation_primary_budget_threshold_pct=row.sticky_reallocation_primary_budget_threshold_pct,
